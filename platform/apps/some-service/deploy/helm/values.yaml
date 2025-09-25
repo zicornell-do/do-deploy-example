@@ -1,0 +1,17 @@
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  repository: some-service
+  tag: latest
+  pullPolicy: IfNotPresent
+
+namespace: some-service
+
+replicaCount: 1
+
+service:
+  type: ClusterIP
+  port: 3000
+
+resources: {}
