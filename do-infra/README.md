@@ -32,6 +32,14 @@ Advanced options (env vars):
 - TF_VALUES_OVERRIDES_FILE=path/to/values.yaml: additional Helm values for Argo CD
 - APP_NAMESPACE (default: some-service), ARGO_NAMESPACE (default: argocd)
 
+Git credentials for private repos (Argo CD v2.1+):
+- After ./deploy.sh, run:
+  ./set-argocd-git-credentials.sh
+  This creates/updates a Secret in the argocd namespace with your Git creds (no secrets in Terraform state).
+  Defaults for prompts are magic placeholders like "YOUR_USERNAME" if you press Enter.
+  Supported AUTH_TYPE values: https_basic (username/password or PAT) and ssh.
+  For older Argo CD versions (<2.1), you can set CREATE_REPOSITORY_CR=1 to also create a Repository CR that references the Secret.
+
 Teardown:
 - Destroy Argo CD app via Terraform:
   cd terraform && terraform destroy -auto-approve
