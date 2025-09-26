@@ -1,2 +1,12 @@
-# IDE Files
+# IDE Stuff
 .idea
+
+# NodeJs Stuff
+node_modules/
+dist/
+.env
+
+# Terraform Stuff
+.terraform/
+.terraform.lock.hcl
+*.tfstate*
