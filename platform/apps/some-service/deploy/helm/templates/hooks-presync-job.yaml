@@ -1,0 +1,18 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "some-service.fullname" . }}-presync
+  namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: presync
+          image: alpine:3.19
+          command: ["/bin/sh","-c"]
+          args:
+            - echo "Absorb what is useful, discard what is not, add what is uniquely your own. -Bruce Lee"
