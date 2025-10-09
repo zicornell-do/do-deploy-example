@@ -8,6 +8,11 @@ class AppController {
   getRoot(): string {
     return 'Hello, World!';
   }
+
+  @Get('/health')
+  getHealth(): string {
+    return 'OK';
+  }
 }
 
 @Module({

@@ -8,7 +8,7 @@ This repo contains:
 - Helm + Terraform configs to deploy the service (platform/apps/some-service/deploy).
 - do-infra for spinning up a local kind cluster with Argo CD (installed via upstream manifest) and deploying the app via Argo CD Application.
 
-Quick local cluster with kind + Argo CD + some-service (one command):
+Quick local cluster with kind + Argo CD + local registry + some-service (one command):
 - From repo root:
   REPO_URL=https://github.com/your-org/do-deploy-example.git ./do-infra/deploy.sh
 

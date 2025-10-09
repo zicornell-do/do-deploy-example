@@ -49,15 +49,28 @@ need_cmd kind
 need_cmd kubectl
 need_cmd terraform
 
-# 1) Create kind cluster if not exists
-if kind get clusters | grep -q "^${CLUSTER_NAME}$"; then
-  echo "👉 [1] Cluster ${CLUSTER_NAME} already exists"
+# 1) Ensure local registry (registry:2) is running and connected to kind network
+if ! docker ps --format '{{.Names}}' | grep -q '^kind-registry$'; then
+  echo "👉 [1] Starting local registry 'kind-registry' on localhost:5001..."
+  docker run -d --restart=always -p 5001:5000 --name kind-registry registry:2 || true
 else
-  echo "👉 [1] Creating kind cluster ${CLUSTER_NAME}..."
+  echo "👉 [1] Local registry 'kind-registry' already running"
+fi
+# Connect the registry container to 'kind' network if exists
+if docker network inspect kind >/dev/null 2>&1; then
+  docker network connect kind kind-registry >/dev/null 2>&1 || true
+fi
+
+# 2) Create kind cluster if not exists (configured to use the local registry mirror)
+if kind get clusters | grep -q "^${CLUSTER_NAME}$"; then
+  echo "👉 [2] Cluster ${CLUSTER_NAME} already exists"
+  echo "ℹ️  Note: If this cluster was created without the registry mirror, pulling from localhost:5001 inside the cluster may fail. Consider: kind delete cluster --name ${CLUSTER_NAME} && KIND_CONFIG=${KIND_CONFIG} ./do-infra/create-cluster.sh"
+else
+  echo "👉 [2] Creating kind cluster ${CLUSTER_NAME} with config ${KIND_CONFIG}..."
   kind create cluster --name "$CLUSTER_NAME" --config "$KIND_CONFIG"
 fi
 
-# 2) Install/ensure Argo CD is present
+# 3) Install/ensure Argo CD is present
 # Create namespace if missing
 kubectl get ns "$ARGO_NAMESPACE" >/dev/null 2>&1 || kubectl create ns "$ARGO_NAMESPACE"
 # Apply upstream manifest (idempotent)
@@ -65,7 +78,7 @@ kubectl -n "$ARGO_NAMESPACE" apply -f https://raw.githubusercontent.com/argoproj
 
 # Wait for CRDs to be established before Terraform applies the Application
 # Poll for the Application CRD up to ~60s
-echo "👉 [2] Waiting for Argo CD CRDs to be established..."
+echo "👉 [3] Waiting for Argo CD CRDs to be established..."
 for i in {1..30}; do
   if kubectl get crd applications.argoproj.io >/dev/null 2>&1; then
     break
@@ -74,11 +87,11 @@ for i in {1..30}; do
 done
 
 # Wait briefly for the server to roll out (don't fail the whole script if it times out)
-echo "👉 [2] Waiting for Argo CD server rollout (up to 180s)..."
+echo "👉 [3] Waiting for Argo CD server rollout (up to 180s)..."
 kubectl -n "$ARGO_NAMESPACE" rollout status deploy/argocd-server --timeout=180s || true
 
-# 3) Inject repository credentials for Argo CD
-echo "👉 [3] Inject repository credentials for Argo CD..."
+# 4) Inject repository credentials for Argo CD
+echo "👉 [4] Inject repository credentials for Argo CD..."
 SECRET_NAME=argocd-git-creds
 
 case "$AUTH_TYPE" in
@@ -94,7 +107,7 @@ case "$AUTH_TYPE" in
       echo
     fi
 
-    echo "👉 [3] Applying Secret '${SECRET_NAME}' with HTTPS basic auth..."
+    echo "👉 [4] Applying Secret '${SECRET_NAME}' with HTTPS basic auth..."
     kubectl -n "${ARGO_NAMESPACE}" create secret generic "${SECRET_NAME}" \
       --from-literal=url="${REPO_URL}" \
       --from-literal=username="${USERNAME}" \
@@ -114,7 +127,7 @@ case "$AUTH_TYPE" in
       exit 1
     fi
 
-    echo "👉 [3] Applying Secret '${SECRET_NAME}' with SSH private key..."
+    echo "👉 [4] Applying Secret '${SECRET_NAME}' with SSH private key..."
     kubectl -n "${ARGO_NAMESPACE}" create secret generic "${SECRET_NAME}" \
       --from-literal=url="${REPO_URL}" \
       --from-literal=username="${USERNAME}" \
@@ -129,18 +142,22 @@ case "$AUTH_TYPE" in
     ;;
 esac
 
-# 3) Build and load local image into kind (optional)
+# 5) Build image and push to local registry (optional)
 if [[ "$SKIP_IMAGE" != "1" ]]; then
-  echo "👉 [4] Building image ${IMAGE_NAME} and loading into kind cluster ${CLUSTER_NAME}..."
-  ( cd "$ROOT_DIR/platform/apps/some-service" && docker build -t "$IMAGE_NAME" . )
-  kind load docker-image "$IMAGE_NAME" --name "$CLUSTER_NAME"
+  echo "👉 [5] Building image ${IMAGE_NAME} and pushing to localhost:5001..."
+  ( cd "$ROOT_DIR/platform/apps/some-service" && npm run package )
+  # Tag and push to local registry
+  LOCAL_REPO="localhost:5001/${IMAGE_NAME%:*}"
+  LOCAL_TAG="${IMAGE_NAME##*:}"
+  docker tag "$IMAGE_NAME" "$LOCAL_REPO:$LOCAL_TAG"
+  docker push "$LOCAL_REPO:$LOCAL_TAG"
 else
-  echo "👉 [4] Skipping image build/load as requested (SKIP_IMAGE=1)"
+  echo "👉 [5] Skipping image build/push as requested (SKIP_IMAGE=1)"
 fi
 
-# 4) Terraform: create Argo CD Application (Argo CD is already installed upstream)
+# 6) Terraform: create Argo CD Application (Argo CD is already installed upstream)
 # Prepare optional Helm values overrides provided via file
-echo "👉 [5] Apply Terraform for the Application"
+echo "👉 [6] Apply Terraform for the Application"
 VALUES_ARG=""
 if [[ -n "${TF_VALUES_OVERRIDES_FILE:-}" ]]; then
   if [[ -f "$TF_VALUES_OVERRIDES_FILE" ]]; then
@@ -162,7 +179,7 @@ terraform apply -input=false -auto-approve \
   -var="argo_namespace=${ARGO_NAMESPACE}" ${VALUES_ARG}
 popd >/dev/null
 
-echo "👉 [6] Deployment requested. Argo CD will sync the Application."
+echo "👉 [7] Deployment requested. Argo CD will sync the Application."
 
 echo
 echo "- Default Argo CD username / password:"

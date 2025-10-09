@@ -8,7 +8,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/main.js",
     "start:dev": "ts-node-dev --respawn --transpile-only src/main.ts",
-    "package": "docker build -t some-service .",
+    "package": "docker build -t some-service:local .",
     "package:run": "docker run -p 3000:3000 some-service"
   },
   "dependencies": {

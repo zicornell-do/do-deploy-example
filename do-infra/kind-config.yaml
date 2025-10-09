@@ -1,6 +1,11 @@
-# Minimal kind cluster config
+# Kind cluster config with local registry mirror for localhost:5001
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
+containerdConfigPatches:
+- |-
+  [plugins."io.containerd.grpc.v1.cri".registry.mirrors]
+    [plugins."io.containerd.grpc.v1.cri".registry.mirrors."localhost:5001"]
+      endpoint = ["http://kind-registry:5000"]
 nodes:
 - role: control-plane
   kubeadmConfigPatches:

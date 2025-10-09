@@ -2,8 +2,8 @@ nameOverride: ""
 fullnameOverride: ""
 
 image:
-  repository: some-service
-  tag: latest
+  repository: localhost:5001/some-service
+  tag: local
   pullPolicy: IfNotPresent
 
 namespace: some-service
